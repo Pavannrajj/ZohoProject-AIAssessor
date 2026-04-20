@@ -1,25 +1,16 @@
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
+from typing import Any, Dict
 from tools.zoho_client import ZohoClient
-from typing import Any
 
-from agents.query_agent import QueryAgent
-from agents.action_agent import ActionAgent
-from agents.router import route
+from graph import graph   # ✅ LangGraph
 
 from auth.routes import router as auth_router
 
 app = FastAPI()
 
-# Include OAuth routes
+# OAuth routes (unchanged)
 app.include_router(auth_router, prefix="/auth")
-
-# ✅ TEMP TEST (Step 1)
-
-
-# Agents
-query_agent = QueryAgent()
-action_agent = ActionAgent()
 
 
 @app.get("/")
@@ -27,44 +18,56 @@ async def root():
     return {"message": "API is running"}
 
 
-# Request/Response models
+# Request / Response models
 class ChatRequest(BaseModel):
     message: str
 
 
 class ChatResponse(BaseModel):
     response: Any
+    pending_action: Any = None
 
-context_store = {}
+
+# ✅ Simple in-memory state (per user)
+context_store: Dict[str, Dict] = {}
+
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest, request: Request):
 
-    user_id = "demo_user"
-    message = req.message
+    user_id = "demo_user"   # later replace with real auth user
 
-    # ✅ initialize memory
+    # ✅ Initialize or reuse state
     if user_id not in context_store:
-        context_store[user_id] = {}
+        context_store[user_id] = {
+            "message": "",
+            "user_id": user_id,
+            "project_id": None,
+            "intent": None,
+            "pending_action": None,
+            "response": None
+        }
 
-    context = context_store[user_id]
+    state = context_store[user_id]
 
-    from memory.store import pending_actions
-    if user_id in pending_actions:
-        decision = "action"
-    else:
-        decision = route(message)
+    # ✅ Update message only (keep memory like project_id)
+    state["message"] = req.message
 
-    if decision == "action":
-        result = action_agent.handle(user_id, message, context)
-    else:
-        result = query_agent.handle(user_id, message, context)
-    print("Message:", message)
-    print("Decision:", decision)
-    return {"response": result}
+    # ✅ Run LangGraph
+    result = graph.invoke(state)
+
+    # ✅ Save updated state back
+    context_store[user_id] = result
+
+    print("Message:", req.message)
+    print("Intent:", result.get("intent"))
+
+    return {
+        "response": result.get("response"),
+        "pending_action": result.get("pending_action")
+    }
 
 @app.get("/projects")
 def get_projects():
-    
     client = ZohoClient(user_id="demo_user")
     return client.get_projects()

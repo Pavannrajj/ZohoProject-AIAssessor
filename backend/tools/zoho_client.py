@@ -56,3 +56,23 @@ class ZohoClient:
             return {"error": response.text}
 
         return {"message": f"Task {task_id} deleted successfully"}
+    
+    def create_task(self, project_id: str, task_name: str):
+        token = get_valid_token(self.user_id)
+
+        headers = {
+        "Authorization": f"Zoho-oauthtoken {token}"
+        }
+
+        url = f"https://projectsapi.zoho.in/restapi/portal/pavanbdotofficial5gmaildotcom/projects/{project_id}/tasks/"
+
+        data = {
+        "name": task_name
+        }
+
+        response = requests.post(url, headers=headers, data=data)
+
+        if response.status_code not in [200, 201]:
+            return {"error": response.text}
+
+        return response.json()

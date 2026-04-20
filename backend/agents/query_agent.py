@@ -5,19 +5,19 @@ class QueryAgent:
 
         message = message.lower()
 
-        # ✅ STEP 8 — STORE project_id
+        # ✅ STEP 1: Fetch + store project_id
         if "projects" in message:
             data = list_projects(user_id)
 
             projects = data.get("projects", [])
 
             if projects:
-                context["project_id"] = projects[0]["id"]   # ✅ store
-                print("Stored project_id:", context["project_id"])  # debug
+                context["project_id"] = projects[0]["id"]   # ✅ store in state
+                print("Stored project_id:", context["project_id"])
 
             return data
 
-        # ✅ USE stored project_id
+        # ✅ STEP 2: Use stored project_id
         elif "tasks" in message:
             project_id = context.get("project_id")
 
@@ -25,6 +25,5 @@ class QueryAgent:
                 return "Please select a project first (use 'show projects')"
 
             return list_tasks(user_id, project_id)
-            
 
         return "I can only fetch data (projects, tasks, etc.)"
