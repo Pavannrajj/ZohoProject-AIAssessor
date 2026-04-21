@@ -1,18 +1,24 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 from auth.utils import get_auth_url
 from auth.service import exchange_code_for_token
 
 router = APIRouter()
 
-# Step 1: Login
 @router.get("/login")
 def login():
     return RedirectResponse(get_auth_url())
 
-# Step 2: Callback
+
 @router.get("/callback")
-def callback(code: str):
-    user_id = "demo_user"  # later replace with real session user
+def callback(code: str, request: Request):
+    # ✅ generate user_id (temporary unique id)
+    user_id = "user_" + code[:8]
+
+    # store token
     exchange_code_for_token(code, user_id)
-    return {"message": "Login successful"}
+
+    # ✅ save user in session
+    request.session["user_id"] = user_id
+
+    return RedirectResponse(url="http://localhost:5173/?auth=success")

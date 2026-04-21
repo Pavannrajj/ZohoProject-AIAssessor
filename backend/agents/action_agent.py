@@ -21,7 +21,8 @@ class ActionAgent:
                             "requires_confirmation": False,
                             "message": "Please select a project first (use 'show projects')"
                         }
-
+                    print("PROJECT ID:", project_id)
+                    print("TASK ID:", action_data["task_id"])
                     result = delete_task(
                         user_id,
                         project_id,

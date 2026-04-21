@@ -42,6 +42,9 @@ def refresh_access_token(user_id: str):
 
 
 def get_valid_token(user_id: str):
+    if user_id not in user_tokens:
+        raise Exception("User not logged in")
+
     token_data = user_tokens[user_id]
 
     if time.time() > token_data["expires_at"]:
