@@ -12,6 +12,7 @@ function detectView(): AppView {
     return 'chat';
   }
   return sessionStorage.getItem('zoho_authed') === '1' ? 'chat' : 'login';
+
 }
 
 export default function App() {

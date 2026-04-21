@@ -28,26 +28,40 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading, pendingAction]);
 
-  async function handleSend(text: string) {
-    setMessages(prev => [...prev, makeMessage('user', text)]);
-    setLoading(true);
-    setPendingAction(null);
+async function handleSend(text: string) {
+  setMessages(prev => [...prev, makeMessage('user', text)]);
+  setLoading(true);
+  setPendingAction(null);
 
-    try {
-      const data = await sendMessage(text);
-      setMessages(prev => [
-  ...prev,
-  makeMessage('bot', data.response)
-]);
-      if (data.pending_action) {
-        setPendingAction(data.pending_action);
-      }
-    } catch {
-      setMessages(prev => [...prev, makeMessage('bot', 'Sorry, something went wrong. Please try again.')]);
-    } finally {
-      setLoading(false);
+  try {
+    const data = await sendMessage(text);
+
+    // ✅ ADD THIS BLOCK HERE
+    if (data.response === "User not authenticated. Please login again.") {
+      sessionStorage.removeItem('zoho_authed');   // clear frontend flag
+      window.location.href = '/';                 // redirect to login page
+      return;
     }
+
+    // ✅ Only run if authenticated
+    setMessages(prev => [
+      ...prev,
+      makeMessage('bot', data.response)
+    ]);
+
+    if (data.pending_action) {
+      setPendingAction(data.pending_action);
+    }
+
+  } catch {
+    setMessages(prev => [
+      ...prev,
+      makeMessage('bot', 'Sorry, something went wrong. Please try again.')
+    ]);
+  } finally {
+    setLoading(false);
   }
+}
 
   async function handleConfirm() {
     setPendingAction(null);
@@ -73,7 +87,10 @@ export default function ChatPage() {
           </div>
         </div>
         <button
-          onClick={() => { window.location.href = 'http://localhost:8000/auth/logout'; }}
+          onClick={() => {
+  sessionStorage.removeItem('zoho_authed');
+  window.location.href = 'http://localhost:8000/auth/logout';
+}}
           className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-100"
         >
           <LogOut className="w-3.5 h-3.5" />
