@@ -103,6 +103,15 @@ async def chat(req: ChatRequest, request: Request):
         else:
             response_text = "No members found"
     
+    elif isinstance(res, dict) and all(isinstance(v, int) for v in res.values()):
+
+        if res:
+            response_text = "Task Utilisation:\n" + "\n".join(
+            [f"- {user}: {count} tasks" for user, count in res.items()]
+        )
+        else:
+            response_text = "No task data available"
+    
     elif isinstance(res, dict) and "tasks" in res:
 
         tasks = res.get("tasks")
@@ -110,7 +119,7 @@ async def chat(req: ChatRequest, request: Request):
     # ✅ Case 1: Multiple tasks
         if isinstance(tasks, list) and len(tasks) > 1:
             response_text = "Here are your tasks:\n" + "\n".join(
-            [f"- {t['name']} (ID: {t['id_string']})" for t in tasks]
+            [f"{i+1}. {t['name']} (ID: {t['id_string']})" for i, t in enumerate(tasks)]
             )
 
         # ✅ Case 2: Single task (DETAILS)

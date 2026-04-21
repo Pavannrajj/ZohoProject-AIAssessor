@@ -27,3 +27,23 @@ def update_task(user_id, project_id, task_id, data):
 def list_project_members(user_id, project_id):
     client = ZohoClient(user_id)
     return client.get_project_members(project_id)
+
+
+def get_task_utilisation(user_id, project_id):
+    from tools.tools import list_tasks  # reuse existing
+
+    tasks = list_tasks(user_id, project_id)
+
+    summary = {}
+
+    for task in tasks.get("tasks", []):
+        owners = task.get("details", {}).get("owners", [])
+
+        if owners and isinstance(owners, list):
+            owner = owners[0].get("name", "Unknown")
+        else:
+            owner = "Unknown"
+            
+        summary[owner] = summary.get(owner, 0) + 1
+
+    return summary

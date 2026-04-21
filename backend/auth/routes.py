@@ -22,3 +22,18 @@ def callback(code: str, request: Request):
     request.session["user_id"] = user_id
 
     return RedirectResponse(url="http://localhost:5173/?auth=success")
+
+
+@router.get("/logout")
+def logout(request: Request):
+
+    user_id = request.session.get("user_id")  # ✅ get first
+
+    request.session.clear()  # then clear
+
+    from models.user_tokens import user_tokens
+
+    if user_id and user_id in user_tokens:
+        user_tokens.pop(user_id)
+
+    return RedirectResponse(url="http://localhost:5173/")

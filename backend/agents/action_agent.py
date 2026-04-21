@@ -1,3 +1,8 @@
+from multiprocessing import context
+from operator import index
+from memory.store import last_tasks_store
+
+
 from tools.tools import delete_task, create_task, update_task
 from memory.store import pending_actions
 
@@ -6,6 +11,7 @@ class ActionAgent:
     def handle(self, user_id, message, context):
 
         message = message.lower()
+        print("LAST TASKS IN ACTION:", context.get("last_tasks"))
 
         # =========================
         # STEP A: Handle confirmation
@@ -176,7 +182,32 @@ class ActionAgent:
                     "message": "Please provide task id (e.g., delete task 5)"
                 }
 
-            task_id = parts[-1]
+            task_input = parts[-1]
+            last_tasks = last_tasks_store.get(user_id, [])
+            
+            print("LAST TASKS:", last_tasks) 
+            if not last_tasks:
+                return {
+        "requires_confirmation": False,
+        "message": "No recent task list found. Please run 'show tasks' first."
+    } 
+            # ✅ Case 1: User gives number (e.g., delete task 2)
+            if task_input.isdigit():
+
+                index = int(task_input) - 1
+                print("INDEX:", index, "TOTAL:", len(last_tasks))
+                
+                if index < 0 or index >= len(last_tasks):
+                    return {
+            "requires_confirmation": False,
+            "message": "Invalid task number"
+        }
+
+                task_id = last_tasks[index]["id_string"]
+
+# ✅ Case 2: User gives actual task ID
+            else:
+                task_id = task_input
 
             pending_actions[user_id] = {
                 "action": "delete_task",
