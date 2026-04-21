@@ -6,7 +6,7 @@ def query_node(state):
     response = agent.handle(
         user_id=state["user_id"],
         message=state["message"],
-        context=state   # 🔥 THIS is your memory
+        context=state   
     )
 
     state["response"] = response

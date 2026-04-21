@@ -92,16 +92,55 @@ async def chat(req: ChatRequest, request: Request):
         else:
             response_text = "No projects found"
 
+    elif isinstance(res, dict) and "users" in res:
+
+        users = res.get("users", [])
+
+        if users:
+            response_text = "Project Members:\n" + "\n".join(
+            [f"- {u.get('name')} ({u.get('email')})" for u in users]
+        )
+        else:
+            response_text = "No members found"
+    
     elif isinstance(res, dict) and "tasks" in res:
-        tasks = res.get("tasks", [])
-        if tasks:
+
+        tasks = res.get("tasks")
+
+    # ✅ Case 1: Multiple tasks
+        if isinstance(tasks, list) and len(tasks) > 1:
             response_text = "Here are your tasks:\n" + "\n".join(
-                [f"- {t['name']} (ID: {t['id_string']})" for t in tasks]
+            [f"- {t['name']} (ID: {t['id_string']})" for t in tasks]
             )
+
+        # ✅ Case 2: Single task (DETAILS)
+        elif isinstance(tasks, list) and len(tasks) == 1:
+            task = tasks[0]
+
+            response_text = f"""
+Task Details:
+- Name: {task.get("name")}
+- ID: {task.get("id_string")}
+- Status: {task.get("status", {}).get("name")}
+- Owner: {task.get("owner_name")}
+"""
+
         else:
             response_text = "No tasks found"
 
     # Case 2: ActionAgent format
+    elif isinstance(res, dict) and "tasks" in res and isinstance(res["tasks"], dict):
+        task = res["tasks"]
+
+        response_text = f"""
+    Task Details:
+    - Name: {task.get("name")}
+    - ID: {task.get("id_string")}
+    - Status: {task.get("status", {}).get("name")}
+    - Owner: {task.get("owner_name")}
+        """
+    
+
     elif isinstance(res, dict) and "message" in res:
         response_text = res["message"]
 

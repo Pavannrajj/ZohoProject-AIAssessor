@@ -19,7 +19,7 @@ def router_node(state):
 
     Message: "{message}"
 
-    If it is READ (fetch/list/get) → return "query"
+    If it is READ (fetch/list/get/details) → return "query"
     If it is WRITE (create/update/delete/assign) → return "action"
 
     Only return one word: query OR action

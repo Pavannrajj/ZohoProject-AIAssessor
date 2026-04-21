@@ -15,3 +15,15 @@ def create_task(user_id, project_id, name):
 def delete_task(user_id, project_id, task_id):
     client = ZohoClient(user_id)
     return client.delete_task(project_id, task_id)
+
+def get_task_details(user_id, project_id, task_id):
+    client = ZohoClient(user_id)
+    return client.get_task_details(project_id, task_id)
+
+def update_task(user_id, project_id, task_id, data):
+    client = ZohoClient(user_id)
+    return client.update_task(project_id, task_id, data)
+
+def list_project_members(user_id, project_id):
+    client = ZohoClient(user_id)
+    return client.get_project_members(project_id)

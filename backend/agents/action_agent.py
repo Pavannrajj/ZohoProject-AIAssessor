@@ -1,17 +1,21 @@
-from tools.tools import delete_task,create_task
+from tools.tools import delete_task, create_task, update_task
 from memory.store import pending_actions
+
 
 class ActionAgent:
     def handle(self, user_id, message, context):
 
         message = message.lower()
 
+        # =========================
         # STEP A: Handle confirmation
+        # =========================
         if user_id in pending_actions:
 
             if message in ["yes", "confirm", "ok", "sure"]:
                 action_data = pending_actions.pop(user_id)
 
+                # ✅ DELETE TASK
                 if action_data["action"] == "delete_task":
 
                     project_id = context.get("project_id")
@@ -21,8 +25,7 @@ class ActionAgent:
                             "requires_confirmation": False,
                             "message": "Please select a project first (use 'show projects')"
                         }
-                    print("PROJECT ID:", project_id)
-                    print("TASK ID:", action_data["task_id"])
+
                     result = delete_task(
                         user_id,
                         project_id,
@@ -32,6 +35,51 @@ class ActionAgent:
                     return {
                         "requires_confirmation": False,
                         "message": result
+                    }
+
+                # ✅ UPDATE TASK
+                elif action_data["action"] == "update_task":
+
+                    project_id = context.get("project_id")
+
+                    if not project_id:
+                        return {
+                            "requires_confirmation": False,
+                            "message": "Please select a project first"
+                        }
+
+                    result = update_task(
+                        user_id,
+                        project_id,
+                        action_data["task_id"],
+                        action_data["data"]
+                    )
+
+                    return {
+                        "requires_confirmation": False,
+                        "message": "Task updated successfully"
+                    }
+
+                # ✅ CREATE TASK (FIXED)
+                elif action_data["action"] == "create_task":
+
+                    project_id = context.get("project_id")
+
+                    if not project_id:
+                        return {
+                            "requires_confirmation": False,
+                            "message": "Please select a project first"
+                        }
+
+                    result = create_task(
+                        user_id,
+                        project_id,
+                        action_data["task_name"]
+                    )
+
+                    return {
+                        "requires_confirmation": False,
+                        "message": f"Task '{action_data['task_name']}' created successfully"
                     }
 
             elif message in ["no", "cancel"]:
@@ -46,7 +94,10 @@ class ActionAgent:
                     "requires_confirmation": True,
                     "message": "Please confirm with yes or no"
                 }
-        # STEP B: Create task
+
+        # =========================
+        # STEP B: Create task (WITH CONFIRMATION)
+        # =========================
         if "create task" in message:
 
             project_id = context.get("project_id")
@@ -55,11 +106,8 @@ class ActionAgent:
                 return {
                     "requires_confirmation": False,
                     "message": "Please select a project first (use 'show projects')"
-                    }
+                }
 
-                
-
-            # extract task name
             task_name = message.replace("create task", "").strip()
 
             if not task_name:
@@ -68,14 +116,58 @@ class ActionAgent:
                     "message": "Please provide task name (e.g., create task API integration)"
                 }
 
-            result = create_task(user_id, project_id, task_name)
+            pending_actions[user_id] = {
+                "action": "create_task",
+                "task_name": task_name
+            }
 
             return {
-                "requires_confirmation": False,
-                "message": result
+                "requires_confirmation": True,
+                "message": f"Create task '{task_name}'?"
             }
-        # STEP B: New delete request
+
+        # =========================
+        # STEP C: Update task request
+        # =========================
+        if "update task" in message:
+
+            project_id = context.get("project_id")
+
+            if not project_id:
+                return {
+                    "requires_confirmation": False,
+                    "message": "Please select a project first (use 'show projects')"
+                }
+
+            parts = message.split()
+
+            if len(parts) < 4:
+                return {
+                    "requires_confirmation": False,
+                    "message": "Use format: update task <id> <new name>"
+                }
+
+            task_id = parts[2]
+            new_name = " ".join(parts[3:])
+
+            pending_actions[user_id] = {
+                "action": "update_task",
+                "task_id": task_id,
+                "data": {
+                    "name": new_name
+                }
+            }
+
+            return {
+                "requires_confirmation": True,
+                "message": f"Update task {task_id} name to '{new_name}'?"
+            }
+
+        # =========================
+        # STEP D: Delete task
+        # =========================
         if "delete task" in message:
+
             parts = message.split()
 
             if len(parts) < 3:
