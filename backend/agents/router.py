@@ -28,15 +28,15 @@ def router_node(state):
     try:
         result = llm.invoke(prompt).content.strip().lower()
     except Exception as e:
+       
         print("LLM ERROR:", e)
 
-        # ✅ STEP 3: Fallback (VERY IMPORTANT)
-        if any(word in message for word in ["create", "delete", "update", "assign"]):
-            result = "action"
-        else:
-            result = "query"
+        state["intent"] = "error"   # ✅ special intent
+        state["response"] = "LLM service is temporarily unavailable. Please try again later."
+        state["pending_action"] = None
 
-    print("ROUTER INTENT:", result)
+        return state
+        
 
     state["intent"] = result
     return state
