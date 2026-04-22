@@ -4,7 +4,11 @@ from operator import index
 
 from langgraph.func import task
 from sympy import preview
+from typer import prompt
 from memory.store import last_tasks_store
+
+from config.llm import llm
+import json
 
 
 from tools.tools import delete_task, create_task, find_task_by_name, update_task
@@ -48,6 +52,55 @@ class ActionAgent:
 
         message = message.lower()
         print("LAST TASKS IN ACTION:", context.get("last_tasks"))
+        # =========================
+# STEP 0: LLM Parsing Layer
+# =========================
+
+        prompt = f"""
+You are an API action planner.
+
+Message: "{message}"
+
+Extract action details.
+
+Return ONLY valid JSON:
+
+{{
+  "action": "create_task | update_task | delete_task | none",
+  "task_identifier": "", 
+  "task_name": "",
+  "data": {{
+    "status": "",
+    "priority": "",
+    "due_date": "",
+    "assignee": ""
+  }}
+}}
+
+Rules:
+- task_identifier can be id OR index OR name
+- If no action → return action = "none"
+- No explanation
+- No markdown
+"""
+
+        try:
+            response = llm.invoke(prompt)
+            raw = response.content if hasattr(response, "content") else str(response)
+            raw = raw.strip()
+
+            print("ACTION LLM RAW:", raw)
+
+            # ✅ clean markdown
+            if raw.startswith("```"):
+                raw = raw.replace("```json", "").replace("```", "").strip()
+
+            parsed = json.loads(raw)
+            action_type = parsed.get("action")
+
+        except Exception as e:
+            print("ACTION LLM ERROR:", e)
+            parsed = {"action": "none"}
 
         # =========================
         # STEP A: Handle confirmation
@@ -140,7 +193,7 @@ class ActionAgent:
         # =========================
         # STEP B: Create task (WITH CONFIRMATION)
         # =========================
-        if "create task" in message:
+        if action_type == "create_task":
 
             project_id = context.get("project_id")
 
@@ -150,7 +203,7 @@ class ActionAgent:
                     "message": "Please select a project first (use 'show projects')"
                 }
 
-            task_name = message.replace("create task", "").strip()
+            task_name = parsed.get("task_name")
 
             if not task_name:
                 return {
@@ -171,7 +224,7 @@ class ActionAgent:
         # =========================
         # STEP C: Update task request
         # =========================
-        if "update task" in message:
+        elif action_type == "update_task":
 
             project_id = context.get("project_id")
 
@@ -197,7 +250,8 @@ class ActionAgent:
                     break
                 task_name_parts.append(word)
 
-            task_identifier = " ".join(task_name_parts)  # could be ID or name
+            task_identifier = parsed.get("task_identifier")
+            data = parsed.get("data", {}) # could be ID or name
 
             project_id = context.get("project_id")
 
@@ -233,7 +287,7 @@ class ActionAgent:
 
                 task_id = task["id_string"]
 
-            data = extract_update_fields(message)
+            data = parsed.get("data", {})
 
             if not data:
                 return {
@@ -257,54 +311,58 @@ class ActionAgent:
         # =========================
         # STEP D: Delete task
         # =========================
-        if "delete task" in message:
+        elif action_type == "delete_task":
 
-            parts = message.split()
-
-            if len(parts) < 3:
-                return {
-                    "requires_confirmation": False,
-                    "message": "Please provide task id (e.g., delete task 5)"
-                }
-
-            task_input = parts[-1]
+            task_input = parsed.get("task_identifier")
             last_tasks = last_tasks_store.get(user_id, [])
-            
-            print("LAST TASKS:", last_tasks) 
+
             if not last_tasks:
                 return {
-        "requires_confirmation": False,
-        "message": "No recent task list found. Please run 'show tasks' first."
-    } 
-            # ✅ Case 1: User gives number (e.g., delete task 2)
-            if task_input.isdigit():
-
-                index = int(task_input) - 1
-                print("INDEX:", index, "TOTAL:", len(last_tasks))
-                
-                if index < 0 or index >= len(last_tasks):
-                    return {
             "requires_confirmation": False,
-            "message": "Invalid task number"
+            "message": "No recent task list found. Please run 'show tasks' first."
         }
 
-                task_id = last_tasks[index]["id_string"]
+            task_id = None
 
-# ✅ Case 2: User gives actual task ID
+    # ✅ Case 1: numeric → could be ID OR index
+            if task_input and task_input.isdigit():
+
+        # check if it's a real Zoho ID
+                if any(t["id_string"] == task_input for t in last_tasks):
+                    task_id = task_input
+                else:
+            # treat as index
+                    index = int(task_input) - 1
+
+                    if index < 0 or index >= len(last_tasks):
+                        return {
+                    "requires_confirmation": False,
+                    "message": "Invalid task number"
+                }
+
+                    task_id = last_tasks[index]["id_string"]
+
+    # ✅ Case 2: name match
             else:
-                task_id = task_input
+                for t in last_tasks:
+                    if t["name"].lower() in message.lower():
+                        task_id = t["id_string"]
+                        break
 
+    # ❌ not found
+            if not task_id:
+                return {
+            "requires_confirmation": False,
+            "message": "Task not found"
+        }
+
+    # ✅ store pending action
             pending_actions[user_id] = {
-                "action": "delete_task",
-                "task_id": task_id
-            }
+        "action": "delete_task",
+        "task_id": task_id
+    }
 
             return {
-                "requires_confirmation": True,
-                "message": f"Are you sure you want to delete task {task_id}?"
-            }
-
-        return {
-            "requires_confirmation": False,
-            "message": "I handle create/update/delete operations only"
-        }
+        "requires_confirmation": True,
+        "message": f"Are you sure you want to delete task {task_id}?"
+    }

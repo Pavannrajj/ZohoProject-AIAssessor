@@ -1,45 +1,71 @@
 from models.state import GraphState
 from config.llm import llm
 from memory.store import pending_actions
+import json
 
 
 def router_node(state: GraphState):
     message = state["message"].lower()
     user_id = state["user_id"]
 
-    # STEP 1: Bypass LLM for confirmations
+    # ✅ Always respect pending action
     if user_id in pending_actions:
         state["intent"] = "action"
-        print("ROUTER: bypass LLM → action")
+        print("ROUTER: bypass → action")
         return state
 
-    # STEP 2: LLM routing
     prompt = f"""
-    Classify the user request:
+You are an intent classifier.
 
-    Message: "{message}"
+Message: "{message}"
 
-    If it is READ (fetch/list/get/details) → return "query"
-    If it is WRITE (create/update/delete/assign) → return "action"
+Classify into ONE:
 
-    Only return one word: query OR action
-    """
+QUERY → reading data
+Examples:
+- show projects
+- list tasks
+- task details
+- who is assigned
+- utilisation
+
+ACTION → modifying data
+Examples:
+- create task
+- update task
+- delete task
+- assign task
+
+Rules:
+- "details", "show", "list", "get" → ALWAYS query
+- "create", "update", "delete", "assign" → ALWAYS action
+
+Return ONLY JSON:
+{{"intent": "query"}} OR {{"intent": "action"}}
+"""
 
     try:
-        result = llm.invoke(prompt).content.strip().lower()
-    except Exception as e:
-        print("LLM ERROR:", e)
+        response = llm.invoke(prompt)
 
-        # ✅ Fallback routing
-        if any(word in message for word in [
-            "show", "list", "get", "tasks", "projects", "members", "utilisation", "utilization"
-        ]):
-            state["intent"] = "query"
-        else:
-            state["intent"] = "action"
+        raw = response.content if hasattr(response, "content") else str(response)
+        raw = raw.strip()
 
-        print("ROUTER: fallback →", state["intent"])
+        print("LLM RAW:", raw)
+
+        # ✅ FIX: clean markdown
+        if raw.startswith("```"):
+            raw = raw.replace("```json", "").replace("```", "").strip()
+
+        if not raw:
+            raise ValueError("Empty LLM response")
+
+        parsed = json.loads(raw)
+
+        state["intent"] = parsed["intent"]
+
+        print("ROUTER LLM:", state["intent"])
         return state
 
-    state["intent"] = result
-    return state
+    except Exception as e:
+        print("ROUTER FAILURE:", e)
+        return state   
