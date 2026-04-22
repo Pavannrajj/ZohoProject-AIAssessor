@@ -13,12 +13,8 @@ def login():
 @router.get("/callback")
 def callback(code: str, request: Request):
     # ✅ generate user_id (temporary unique id)
-    user_id = "user_" + code[:8]
+    user_id = exchange_code_for_token(code)
 
-    # store token
-    exchange_code_for_token(code, user_id)
-
-    # ✅ save user in session
     request.session["user_id"] = user_id
 
     return RedirectResponse(url="http://localhost:5173/?auth=success")

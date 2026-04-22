@@ -114,3 +114,14 @@ def find_task_by_name(user_id, project_id, task_name):
             return t
 
     return None
+
+def find_project_by_name(user_id, project_name):
+    from memory.store import last_projects_store
+
+    projects = last_projects_store.get(user_id, [])
+
+    for p in projects:
+        if project_name.lower() in p.get("name", "").lower():
+            return p
+
+    return None

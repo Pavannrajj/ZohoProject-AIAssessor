@@ -8,6 +8,10 @@ def router_node(state: GraphState):
     message = state["message"].lower()
     user_id = state["user_id"]
 
+    if "important" in message:
+        state["intent"] = "query"
+        return state
+
     # ✅ Always respect pending action
     if user_id in pending_actions:
         state["intent"] = "action"

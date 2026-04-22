@@ -15,7 +15,7 @@ def get_portals(access_token):
 
     return response.json()
 
-def exchange_code_for_token(code: str, user_id: str):
+def exchange_code_for_token(code: str):
 
     # Step 1: Get access token
     response = requests.post(
@@ -35,9 +35,8 @@ def exchange_code_for_token(code: str, user_id: str):
 
     if not access_token:
         raise Exception(f"Failed to get access token: {data}")
-
+    portals_data = get_portals(access_token)
     # Step 2: Fetch portals
-    portals_data = get_portals(access_token) 
 
     
 
@@ -47,17 +46,20 @@ def exchange_code_for_token(code: str, user_id: str):
     if "portals" not in portals_data or not portals_data["portals"]:
         raise Exception(f"Portal fetch failed: {portals_data}")
 
-    portal_id = portals_data["portals"][0]["id"]
+    
+    portal_data = portals_data["portals"][0]
+    zpuid = str(portal_data["portal_owner"]["zpuid"])
 
+    portal_id = portal_data["id"]
     # Step 4: Store everything
-    user_tokens[user_id] = {
+    user_tokens[zpuid] = {
         "access_token": access_token,
         "refresh_token": data.get("refresh_token"),
         "expires_at": time.time() + int(data["expires_in"]),
         "portal_id": portal_id
     }
 
-    return data
+    return zpuid
 def refresh_access_token(user_id: str):
     token_data = user_tokens[user_id]
 

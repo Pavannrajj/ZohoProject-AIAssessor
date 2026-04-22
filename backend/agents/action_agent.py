@@ -101,6 +101,7 @@ Rules:
         except Exception as e:
             print("ACTION LLM ERROR:", e)
             parsed = {"action": "none"}
+            
 
         # =========================
         # STEP A: Handle confirmation
