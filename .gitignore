@@ -5,3 +5,4 @@ node_modules
 dist
 .bolt
 .DS_Store
+.vite

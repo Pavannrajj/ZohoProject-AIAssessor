@@ -1,4 +1,5 @@
 from asyncio import tasks
+from email import message
 from streamlit import context 
 from memory.store import last_tasks_store
    
@@ -6,6 +7,32 @@ from memory.store import last_tasks_store
 
 from tools.tools import list_projects, list_tasks,get_task_details,list_project_members,get_task_utilisation
 
+import re
+
+def extract_filters(message: str):
+    filters = {}
+
+    message = message.lower()
+
+    # ✅ Normalize user → Zoho status
+    if "completed" in message or "closed" in message:
+        filters["status"] = "closed"
+
+    elif "open" in message:
+        filters["status"] = "open"
+
+    elif "in progress" in message:
+        filters["status"] = "in progress"
+
+    elif "on hold" in message:
+        filters["status"] = "on hold"
+
+    # assignee
+    assignee_match = re.search(r"assigned to (\w+)", message)
+    if assignee_match:
+        filters["assignee"] = assignee_match.group(1)
+
+    return filters
 class QueryAgent:
     def handle(self, user_id, message, context):
 
@@ -19,8 +46,8 @@ class QueryAgent:
             projects = data.get("projects", [])
 
             if projects:
-                context["project_id"] = projects[0]["id"]   # ✅ store in state
-                print("Stored project_id:", context["project_id"])
+                context["project_id"] = projects[0]["id_string"]   # ✅ store in state
+                print("CURRENT PROJECT:", context.get("project_id"))
 
             return data
         
@@ -59,17 +86,20 @@ class QueryAgent:
             return get_task_details(user_id, project_id, task_id)
 
         # ✅ STEP 2: Use stored project_id
-        elif "tasks" in message:
+        if "task" in message:
+
             project_id = context.get("project_id")
 
-            data = list_tasks(user_id, project_id)
+            if not project_id:
+                return {"message": "Please select a project first"}
 
-            tasks = data.get("tasks", [])
+            filters = extract_filters(message)
 
-            last_tasks_store[user_id] = tasks
-            print("Stored last_tasks:", len(tasks)) 
+            result = list_tasks(user_id, project_id, filters)
 
-            return data
+    # ✅ IMPORTANT: store tasks for delete/update by index
+            last_tasks_store[user_id] = result.get("tasks", [])
 
+            print("STORED TASKS:", last_tasks_store[user_id])  # debug
 
-        return "I can only fetch data (projects, tasks, etc.)"
+            return result

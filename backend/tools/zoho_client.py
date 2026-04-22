@@ -49,7 +49,19 @@ class ZohoClient:
         if response.status_code != 200:
             return {"error": response.text}
 
-        return response.json()
+        
+        data = response.json()
+
+        print("RAW TASK RESPONSE:", data)  # keep this for debugging
+
+    # ✅ FIX: Normalize to list
+        if isinstance(data.get("tasks"), list):
+            return data["tasks"]
+
+        if isinstance(data.get("tasks"), dict):
+            return data["tasks"].get("task", [])
+
+        return []
 
     def delete_task(self, project_id: str, task_id: str):
         token = get_valid_token(self.user_id)
@@ -101,7 +113,8 @@ class ZohoClient:
         url = f"https://projectsapi.zoho.in/restapi/portal/{self.portal_id}/projects/{project_id}/tasks/{task_id}/"
 
         response = requests.get(url, headers=self.headers())
-
+        print("PROJECT ID SENT:", project_id)
+        print("RAW TASK RESPONSE:", response.json())
         if response.status_code != 200:
             return {
             "status": "error",
@@ -115,17 +128,57 @@ class ZohoClient:
     def update_task(self, project_id, task_id, data):
         url = f"https://projectsapi.zoho.in/restapi/portal/{self.portal_id}/projects/{project_id}/tasks/{task_id}/"
 
+        payload = {
+            "_method": "PUT"
+    }
+
+    # ✅ DEFINE FIRST
+        status_map = {
+        "open": "Open",
+        "closed": "Closed",
+        "in progress": "In Progress",
+        "on hold": "On Hold"
+    }
+
+        priority_map = {
+        "high": "High",
+        "medium": "Medium",
+        "low": "Low"
+    }
+
+    # ✅ Fields
+        if "name" in data:
+            payload["name"] = data["name"]
+
+        if "status" in data:
+            payload["status"] = status_map.get(
+            data["status"].lower(),
+            data["status"]
+        )
+
+        if "priority" in data:
+            payload["priority"] = priority_map.get(
+            data["priority"].lower(),
+            data["priority"]
+        )
+
+        if "due_date" in data:
+            from datetime import datetime
+            try:
+                dt = datetime.strptime(data["due_date"], "%Y-%m-%d")
+                payload["due_date"] = dt.strftime("%m-%d-%Y")
+            except:
+                pass
+
         response = requests.post(
         url,
         headers={
             "Authorization": f"Zoho-oauthtoken {get_valid_token(self.user_id)}"
         },
-        data={
-            "_method": "PUT",        # ✅ IMPORTANT
-            "name": data["name"]     # ✅ correct field
-        }
+        data=payload
     )
 
+        print("UPDATE PAYLOAD:", payload)
         print("UPDATE RESPONSE:", response.text)
 
         if response.status_code not in [200, 201]:

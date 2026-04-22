@@ -1,10 +1,46 @@
+from email import message
 from multiprocessing import context
 from operator import index
+
+from langgraph.func import task
+from sympy import preview
 from memory.store import last_tasks_store
 
 
-from tools.tools import delete_task, create_task, update_task
+from tools.tools import delete_task, create_task, find_task_by_name, update_task
 from memory.store import pending_actions
+
+import re
+
+def extract_update_fields(message: str):
+    data = {}
+
+    # name
+    name_match = re.search(r"name (.+?)(?= status| priority| due|$)", message)
+    if name_match:
+        data["name"] = name_match.group(1).strip()
+
+    # status
+    status_match = re.search(r"status (open|closed|in progress|on hold)", message)
+    if status_match:
+        data["status"] = status_match.group(1)
+
+    # priority
+    priority_match = re.search(r"priority (high|medium|low)", message)
+    if priority_match:
+        data["priority"] = priority_match.group(1)
+
+    # due date
+    due_match = re.search(r"due (\d{4}-\d{2}-\d{2})", message)
+    if due_match:
+        data["due_date"] = due_match.group(1)
+
+    # assignee
+    assign_match = re.search(r"assign to (\w+)", message)
+    if assign_match:
+        data["assignee"] = assign_match.group(1)
+
+    return data
 
 
 class ActionAgent:
@@ -147,27 +183,76 @@ class ActionAgent:
 
             parts = message.split()
 
-            if len(parts) < 4:
+            if len(parts) < 3:
                 return {
-                    "requires_confirmation": False,
-                    "message": "Use format: update task <id> <new name>"
-                }
+        "requires_confirmation": False,
+        "message": "Use format: update task <id> ..."
+    }
 
-            task_id = parts[2]
-            new_name = " ".join(parts[3:])
+            keywords = ["name", "status", "priority", "due"]
+
+            task_name_parts = []
+            for word in parts[2:]:
+                if word in keywords:
+                    break
+                task_name_parts.append(word)
+
+            task_identifier = " ".join(task_name_parts)  # could be ID or name
+
+            project_id = context.get("project_id")
+
+# ✅ Check if numeric → treat as ID
+            if task_identifier.isdigit():
+
+                last_tasks = last_tasks_store.get(user_id, [])
+
+                if not last_tasks:
+                    return {
+            "requires_confirmation": False,
+            "message": "No recent task list found. Please run 'show tasks' first."
+        }
+
+                index = int(task_identifier) - 1
+
+                if index < 0 or index >= len(last_tasks):
+                    return {
+            "requires_confirmation": False,
+            "message": "Invalid task number"
+        }
+
+                task_id = last_tasks[index]["id_string"]
+
+            else:
+                task = find_task_by_name(user_id, project_id, task_identifier)
+
+                if not task:
+                    return {
+            "requires_confirmation": False,
+            "message": f"Task '{task_identifier}' not found"
+        }
+
+                task_id = task["id_string"]
+
+            data = extract_update_fields(message)
+
+            if not data:
+                return {
+        "requires_confirmation": False,
+        "message": "Please provide fields (name/status/priority/due date)"
+    }
 
             pending_actions[user_id] = {
-                "action": "update_task",
-                "task_id": task_id,
-                "data": {
-                    "name": new_name
-                }
-            }
+    "action": "update_task",
+    "task_id": task_id,
+    "data": data
+}
+
+            preview = "\n".join([f"- {k}: {v}" for k, v in data.items()])
 
             return {
-                "requires_confirmation": True,
-                "message": f"Update task {task_id} name to '{new_name}'?"
-            }
+    "requires_confirmation": True,
+    "message": f"Update Task {task_id}:\n{preview}\nConfirm? (yes/no)"
+}
 
         # =========================
         # STEP D: Delete task
